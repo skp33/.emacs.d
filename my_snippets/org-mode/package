@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: package
+# key: package
+# --
+#+BEGIN_SRC emacs-lisp
+  (use-package $1
+    :ensure t$0)
+#+END_SRC

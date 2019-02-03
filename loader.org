@@ -448,11 +448,13 @@ Evil is an extensible Vim layer for Emacs.
 This combines the best of both worlds: VIM being a great text-editor
 with modal editing through semantic commands and Emacs being a LISP
 REPL.
-** Enable Evil
+*** Enable Evil
 #+BEGIN_SRC emacs-lisp
   (use-package evil :ensure t)
   ;; Enable "M-x" in evil mode
   (global-set-key (kbd "M-x") 'execute-extended-command)
+  (require 'evil)
+  (evil-mode t)
 #+END_SRC
 
 *** Leader Mode Config
@@ -568,8 +570,14 @@ This results in the same feature-set like this vim keybinding:
 
 * Which Key
   =which-key= displays available keybindings in a popup.
+#+BEGIN_SRC emacs-lisp
+(use-package which-key
+:ensure t)
+#+END_SRC
 
 #+BEGIN_SRC emacs-lisp
+(require 'which-key)
+
 (use-package evil-surround
   :ensure t
   :config
@@ -655,7 +663,9 @@ Commands (prefixed by =C-c t=):
 
 #+BEGIN_SRC emacs-lisp
  (use-package comment-tags
-  :ensure t)
+  :ensure t
+  :init
+  (autoload 'comment-tags-mode "comment-tags-mode")
   (setq comment-tags-keymap-prefix (kbd "C-c t"))
   (with-eval-after-load "comment-tags"
     (setq comment-tags-keyword-faces
@@ -672,7 +682,7 @@ Commands (prefixed by =C-c t=):
           comment-tags-case-sensitive t
           comment-tags-show-faces t
           comment-tags-lighter nil))
-  (add-hook 'prog-mode-hook 'comment-tags-mode)
+  (add-hook 'prog-mode-hook 'comment-tags-mode))
 #+END_SRC
 
 *** Auto-indent with the Return key
@@ -717,11 +727,19 @@ Enable code folding for programming modes.
 ** Gradle
 
 #+BEGIN_SRC emacs-lisp
+
+;;(use-package gradle-mode
+;;  :config 
+;;  (setq gradle-use-gradlew t
+;;        gradle-gradlew-executable "./gradlew"))
   (use-package gradle-mode
     :ensure t
     :config
     (gradle-mode 1)
-;;    (setq gradle-use-gradlew 'true)
+    :init
+    ;; Compilation output
+    (setq compilation-scroll-output t)
+    (setq gradle-use-gradlew t)
 )
 #+END_SRC
 
@@ -729,9 +747,10 @@ Enable code folding for programming modes.
 Adding ensime and scala mode
 
 #+BEGIN_SRC emacs-lisp
- ;; (use-package ensime
- ;;   :ensure t)
- ;; (require 'ensime)
+  (use-package ensime
+    :ensure t
+    :pin melpa-stable)
+  (require 'ensime)
   (use-package scala-mode
     :ensure t
     :config
@@ -848,7 +867,7 @@ Create shortcut for =Magit=.
 Always sign commits with GPG
 
 #+BEGIN_SRC emacs-lisp
- (setq magit-commit-arguments (quote ("--gpg-sign=kaushal.prajapati@go-mmt.com")))
+ ;;(setq magit-commit-arguments (quote ("--gpg-sign=kaushal.prajapati@go-mmt.com")))
 #+END_SRC
 
 **** Start the commit buffer in evil normal mode
@@ -1087,7 +1106,9 @@ Thx [[https://github.com/jcfischer][@jcfischer]] for the function!
 
 ** Clean up messy buffers (i.e. web wikis or elfeed-show)
 #+BEGIN_SRC emacs-lisp
-
+  (use-package visual-fill-column
+  :ensure t)
+  (require 'visual-fill-column)
   (defun visual-clean ()
     "Clean up messy buffers (i.e. web wikis or elfeed-show)"
     (interactive)
@@ -1158,6 +1179,9 @@ This is the converse function to the built-in =server-start=.
         "~/.emacs.d/my_snippets"
         ))
 
+(define-key yas-minor-mode-map (kbd "<tab>") nil)
+(define-key yas-minor-mode-map (kbd "TAB") nil)
+(define-key yas-minor-mode-map (kbd "<C-tab>") 'yas-expand)
 (yas-global-mode 1)
 
 (yas-reload-all)
@@ -1167,6 +1191,8 @@ This is the converse function to the built-in =server-start=.
     (if (file-exists-p (expand-file-name ".git/" dir))
         dir
       (find-git-repo (expand-file-name "../" dir)))))
+
+
 
 (defun find-project-root ()
   (interactive)
@@ -1180,8 +1206,31 @@ This is the converse function to the built-in =server-start=.
         (root (find-project-root))
         (base (file-name-nondirectory buffer-file-name))
         )
-    (substring (replace-regexp-in-string "/" "\\" (substring buffer-file-name (length root)\
- (* -1 (length base))) t t) 0 -1)
+    (substring (replace-regexp-in-string "/" "\\" (substring buffer-file-name (length root) (* -1 (length base))) t t) 0 -1)
+    )
+  )
+
+(defun find-scala-dir (dir)
+  (if (string= "/" dir)
+      nil
+    (if (file-exists-p (expand-file-name "scala/" dir))
+        dir
+      (find-scala-dir (expand-file-name "../" dir)))))
+
+(defun find-scala-root ()
+  (interactive)
+  (if (ignore-errors (eproject-root))
+      (eproject-root)
+    (or (find-scala-dir (buffer-file-name)) (file-name-directory (buffer-file-name)))))
+
+
+(defun file-path-to-package ()
+  (interactive)
+  (let (
+        (root (find-scala-root))
+        (base (file-name-nondirectory buffer-file-name))
+        )
+    (substring (replace-regexp-in-string "/" "." (substring buffer-file-name (+ (length root) 6) (* -1 (length base))) t t) 0 -1)
     )
   )
 #+END_SRC
@@ -1212,13 +1261,21 @@ Bookmarks are very useful for quickly jumping around files.
 
 
 #+BEGIN_SRC emacs-lisp
-  (use-package counsel
-    :ensure t
-    :bind
-    (("M-x" . counsel-M-x)
-     ("M-y" . counsel-yank-pop)
-     :map ivy-minibuffer-map
-     ("M-y" . ivy-next-line)))
+   (use-package counsel
+     :ensure t
+     :bind
+     (("M-x" . counsel-M-x)
+      ("M-y" . counsel-yank-pop)
+      :map ivy-minibuffer-map
+      ("M-y" . ivy-next-line)))
+
+
+   (use-package smex
+     :ensure t)
+
+   (require 'smex) ; Not needed if you use package.el
+   (smex-initialize) ; Can be omitted. This might cause a (minimal) delay
+                    ; when Smex is auto-initialized on its first run.
 
    (use-package swiper
      :pin melpa-stable
@@ -1373,9 +1430,14 @@ Install dictionaries from the [[https://addons.mozilla.org/en-us/firefox/languag
 #+begin_src emacs-lisp
   (use-package ace-window
     :ensure t
-    :config
-    (global-set-key (kbd "C-x o") 'ace-window)
-    (key-chord-define-global "gh" 'ace-window))
+    :init
+    (progn
+      (global-set-key (kbd "C-x o") 'ace-window)
+      (key-chord-define-global "gh" 'ace-window)
+      (custom-set-faces
+       '(aw-leading-char-face
+         ((t (:inherit ace-jump-face-foreground :height 3.0)))))
+    ))
 
   (use-package ace-jump-mode
     :ensure t
@@ -1717,6 +1779,16 @@ sign.
 #+BEGIN_SRC emacs-lisp
   (global-prettify-symbols-mode 1)
 #+END_SRC
+
+
+*** Tramp
+
+
+#+BEGIN_SRC emacs-lisp
+  (require 'tramp)
+  (setq tramp-default-method "ssh")
+#+END_SRC
+
 
 *** Auto completion
 
